@@ -7,15 +7,17 @@ import com.liskovsoft.youtubeapi.lounge.models.commands.CommandItem;
 import com.liskovsoft.youtubeapi.lounge.models.commands.RemoteParams;
 import com.liskovsoft.youtubeapi.lounge.models.commands.SeekToParams;
 import com.liskovsoft.youtubeapi.lounge.models.commands.PlaylistParams;
+import com.liskovsoft.youtubeapi.lounge.models.commands.VolumeParams;
 
 public class YouTubeCommand implements Command {
-    private int mType = -1;
+    private int mType = Command.TYPE_UNDEFINED;
     private String mVideoId;
     private String mPlaylistId;
     private long mCurrentTimeMs;
     private String mDeviceName;
     private String mDeviceId;
     private int mPlaylistIndex;
+    private int mVolume;
 
     public static Command from(CommandItem info) {
         if (info == null) {
@@ -43,11 +45,22 @@ public class YouTubeCommand implements Command {
                 SeekToParams seekToParams = info.getSeekToParams();
                 command.mCurrentTimeMs = AppHelper.toMillis(seekToParams.getNewTimeSec());
                 break;
+            case CommandItem.TYPE_SET_VOLUME:
+                command.mType = Command.TYPE_VOLUME;
+                VolumeParams volumeParams = info.getVolumeParams();
+                command.mVolume = Helpers.parseInt(volumeParams.getVolume());
+                break;
             case CommandItem.TYPE_PLAY:
                 command.mType = Command.TYPE_PLAY;
                 break;
             case CommandItem.TYPE_PAUSE:
                 command.mType = Command.TYPE_PAUSE;
+                break;
+            case CommandItem.TYPE_NEXT:
+                command.mType = Command.TYPE_NEXT;
+                break;
+            case CommandItem.TYPE_PREVIOUS:
+                command.mType = Command.TYPE_PREVIOUS;
                 break;
             case CommandItem.TYPE_GET_NOW_PLAYING:
                 command.mType = Command.TYPE_GET_STATE;
@@ -63,6 +76,9 @@ public class YouTubeCommand implements Command {
                 remoteParams = info.getRemoteParams();
                 command.mDeviceName = remoteParams.getDeviceName();
                 command.mDeviceId = remoteParams.getDeviceId();
+                break;
+            case CommandItem.TYPE_NOP:
+                command.mType = Command.TYPE_IDLE;
                 break;
         }
 
@@ -102,5 +118,10 @@ public class YouTubeCommand implements Command {
     @Override
     public String getDeviceId() {
         return mDeviceId;
+    }
+
+    @Override
+    public int getVolume() {
+        return mVolume;
     }
 }

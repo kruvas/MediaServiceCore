@@ -130,7 +130,8 @@ public class LoungeService {
         CommandList sessionInfos = getSessionBind();
 
         if (sessionInfos == null) {
-            Log.e(TAG, "Can't open a session because it's empty.");
+            Log.e(TAG, "Can't open a session because it's empty. Expired lounge token?");
+            mLoungeToken = null;
             return;
         }
 
@@ -161,7 +162,8 @@ public class LoungeService {
         String result = "";
         String line = "";
 
-        processCommands(sessionInfos, callback);
+        // Skip initial commands: TYPE_SESSION_ID, TYPE_G_SESSION_ID, TYPE_LOUNGE_STATUS, TYPE_GET_NOW_PLAYING
+        //processCommands(sessionInfos, callback);
 
         while((line = reader.readLine()) != null) {
             if (mLoungeToken == null) {
@@ -200,39 +202,44 @@ public class LoungeService {
     }
 
     public void postStateChange(long positionMs, long durationMs, boolean isPlaying) {
-        if (positionMs >= 0 && durationMs > 0) {
+        // Live stream fix (negative position)
+        if (positionMs < 0) {
+            positionMs = Math.abs(positionMs);
+        }
+
+        if (durationMs > 0 && positionMs <= durationMs) {
             postOnStateChange(positionMs, durationMs, isPlaying ? CommandParams.STATE_PLAYING : CommandParams.STATE_PAUSED);
         }
     }
 
     public void resetData() {
-        MediaServiceData.instance().setScreen(null);
+        MediaServiceData.instance().setScreenId(null);
         mLoungeToken = null;
     }
 
-    private void postNowPlaying(String videoId, long positionMs, long lengthMs, String ctt, String playlistId, String playlistIndex) {
+    private void postNowPlaying(String videoId, long positionMs, long durationMs, String ctt, String playlistId, String playlistIndex) {
         if (!AppHelper.checkNonNull(mSessionId, mGSessionId)) {
             return;
         }
 
-        Log.d(TAG, "Post nowPlaying...");
+        Log.d(TAG, "Post nowPlaying id: %s, pos: %s, dur: %s...", videoId, positionMs, durationMs);
 
         Call<StateResult> wrapper = mCommandManager.postCommand(
                 mScreenName, mLoungeToken, mSessionId, mGSessionId,
-                CommandParams.getNowPlaying(videoId, positionMs, lengthMs, ctt, playlistId, playlistIndex));
+                CommandParams.getNowPlaying(videoId, positionMs, durationMs, ctt, playlistId, playlistIndex));
         RetrofitHelper.get(wrapper);
     }
 
-    private void postOnStateChange(long positionMs, long lengthMs, int state) {
+    private void postOnStateChange(long positionMs, long durationMs, int state) {
         if (!AppHelper.checkNonNull(mSessionId, mGSessionId)) {
             return;
         }
 
-        Log.d(TAG, "Post onStateChange...");
+        Log.d(TAG, "Post onStateChange pos: %s, dur: %s...", positionMs, durationMs);
 
         Call<StateResult> wrapper = mCommandManager.postCommand(
                 mScreenName, mLoungeToken, mSessionId, mGSessionId,
-                CommandParams.getOnStateChange(positionMs, lengthMs, state));
+                CommandParams.getOnStateChange(positionMs, durationMs, state));
         RetrofitHelper.get(wrapper);
     }
 
@@ -259,22 +266,24 @@ public class LoungeService {
     }
 
     private ScreenItem getScreen() {
-        if (MediaServiceData.instance().getScreen() != null) {
-            return MediaServiceData.instance().getScreen();
+        ScreenItem screenItem = null;
+        String screenId = MediaServiceData.instance().getScreenId();
+
+        if (screenId == null) {
+            Call<ScreenId> screenIdWrapper = mBindManager.createScreenId();
+            ScreenId screenIdContainer = RetrofitHelper.get(screenIdWrapper);
+            if (screenIdContainer != null) {
+                screenId = screenIdContainer.getScreenId();
+                MediaServiceData.instance().setScreenId(screenId);
+            }
         }
 
-        ScreenItem screenItem = null;
-
-        Call<ScreenId> screenIdWrapper = mBindManager.createScreenId();
-        ScreenId screenId = RetrofitHelper.get(screenIdWrapper);
-
         if (screenId != null) {
-            Call<ScreenList> screenInfosWrapper = mScreenManager.getScreenInfo(screenId.getScreenId());
+            Call<ScreenList> screenInfosWrapper = mScreenManager.getScreenInfo(screenId);
             ScreenList screenInfos = RetrofitHelper.get(screenInfosWrapper);
 
             if (screenInfos != null) {
                 screenItem = screenInfos.getScreens().get(0);
-                MediaServiceData.instance().setScreen(screenItem);
             }
         }
 
