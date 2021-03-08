@@ -40,7 +40,7 @@
         </activity>
 
         <provider android:name=".search.VideoContentProvider"
-                  android:authorities="com.liskovsoft.leanbackassistant.stbeta"
+                  android:authorities="${applicationId}.provider"
                   android:exported="true"
                   tools:ignore="ExportedContentProvider" />
 
